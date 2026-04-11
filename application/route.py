@@ -17,6 +17,7 @@ from application import sentiment_model
 
 from application.vulnerabilities.ollama_indirect_prompt_injection import chat_with_ollama_indirect, decode_qr, UPLOAD_FOLDER
 from application.vulnerabilities.openai_indirect_prompt_injection import chat_with_openai_indirect_prompt_injection
+from application.llm_provider import openai_track_can_run
 from werkzeug.utils import secure_filename
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
@@ -219,15 +220,15 @@ def test_openai_leakage():
                 'leaked_info': []
             }), 400
         
-        # If no API token provided, return clear error message
-        if not api_token:
+        # If no LLM credentials (session OpenAI key, Gemini in .env, or Ollama host)
+        if not openai_track_can_run(api_token):
             return jsonify({
                 'response': "Error: No OpenAI API key found in session. Please set up your API key in the Lab Setup section.",
                 'has_leakage': False,
                 'leaked_info': [],
                 'model_type': 'error'
             })
-        
+
         # Query the OpenAI RAG system with the provided API key
         response, success = query_rag_system_openai(user_query, api_token)
         
@@ -479,10 +480,10 @@ def chat_with_openai_plugin():
         
         if not message:
             return jsonify({'error': 'No message provided'}), 400
-            
-        if not openai_api_key:
+
+        if not openai_track_can_run(openai_api_key):
             return jsonify({'error': 'No OpenAI API key found in session. Please set up your API key in the Lab Setup section.'}), 400
-        
+
         # Import the OpenAI insecure plugin
         from application.vulnerabilities.openai_insecure_plugin import chat_with_openai
         
@@ -771,15 +772,15 @@ def test_openai_order_access():
                 'model_type': 'openai'
             })
         
-        # If no API token, return error
-        if not api_token:
+        # If no LLM credentials
+        if not openai_track_can_run(api_token):
             return jsonify({
                 'response': "Error: No OpenAI API key found in session. Please set up your API key in the Lab Setup section.",
                 'has_access_violation': False,
                 'accessed_info': [],
                 'model_type': 'error'
             })
-        
+
         # Query OpenAI model with order access
         response, success = query_openai_with_orders(user_query, api_token)
         
@@ -860,13 +861,13 @@ def test_openai_excessive_agency():
                 'error': 'No query provided',
                 'response': 'Please provide a query to test.'
             }), 400
-            
-        if not api_token:
+
+        if not openai_track_can_run(api_token):
             return jsonify({
                 'response': "Error: No valid OpenAI API token provided. Please set up your OpenAI API key in the Lab Setup section.",
                 'model_type': 'error'
             })
-        
+
         # Use the place_order function to process the user query
         response = place_order(user_query, api_token)
         
@@ -916,10 +917,11 @@ def save_openai_api_key():
 
 @application.app.route('/check-openai-api-key')
 def check_openai_api_key():
-    """Check if OpenAI API key is saved in session"""
-    has_key = 'openai_api_key' in session and session.get('openai_api_key', '').strip() != ''
+    """Check if OpenAI API key is saved in session or server-side Gemini / Ollama is available."""
+    session_key = session.get('openai_api_key', '')
+    has_key = openai_track_can_run(session_key)
     print("Session check - has openai_api_key:", has_key)
-    if has_key:
+    if session_key and session_key.strip():
         print("Session openai_api_key value:", session.get('openai_api_key', 'NOT_FOUND')[:10] + "...")
     return jsonify({'has_key': has_key})
 
@@ -1077,15 +1079,15 @@ def test_openai_misinformation():
                 'misinformation_detected': []
             }), 400
 
-        # If no API token, return error
-        if not api_token:
+        # If no LLM credentials
+        if not openai_track_can_run(api_token):
             return jsonify({
                 'response': "Error: No valid OpenAI API token provided. Please connect to the OpenAI API first by entering your API key.",
                 'has_misinformation': False,
                 'misinformation_detected': [],
                 'model_type': 'error'
             })
-        
+
         # Query OpenAI model using comment system
         response, success = query_openai_for_misinformation(user_query, api_token)
         
@@ -1483,10 +1485,10 @@ def chat_with_openai_dos():
         
         if not message:
             return jsonify({'error': 'No message provided'}), 400
-            
-        if not openai_api_key:
+
+        if not openai_track_can_run(openai_api_key):
             return jsonify({'error': 'No OpenAI API key found in session. Please set up your API key in the Lab Setup section.'}), 400
-        
+
         # Import the OpenAI DoS module
         from application.vulnerabilities.openai_dos import chat_with_openai
         
@@ -1515,7 +1517,7 @@ def chat_with_openai_plugin_direct_prompt():
         if not message:
             return jsonify({'error': 'No message provided'}), 400
 
-        if not api_token:
+        if not openai_track_can_run(api_token):
             return jsonify({'error': 'No OpenAI API key found in session. Please set up your API key in the Lab Setup section.'}), 400
 
         from application.vulnerabilities.openai_direct_prompt_injection import chat_with_openai_direct_prompt_injection
@@ -1599,9 +1601,9 @@ def upload_qr_openai():
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
 
-    # Get the OpenAI API key from the user's session
+    # Get the OpenAI API key from the user's session (optional if Gemini / Ollama configured)
     api_token = session.get('openai_api_key', '')
-    if not api_token:
+    if not openai_track_can_run(api_token):
         return jsonify({'error': 'OpenAI API key not found in session. Please set it in the Lab Setup.'}), 400
 
     # Get the injection level from the form data sent by the JavaScript

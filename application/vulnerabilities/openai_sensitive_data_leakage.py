@@ -1,7 +1,7 @@
 from sentence_transformers import SentenceTransformer
 import faiss
 import numpy as np
-from openai import OpenAI
+from application.llm_provider import chat_completion
 import re
 from application.model import Comment
 from sqlalchemy.orm import joinedload
@@ -83,39 +83,30 @@ def query_rag_system_openai(user_query, api_key):
         context_chunks = [chunks[Ind[0][i]] for i in range(min(3, len(Ind[0])))]
         context = ' '.join(context_chunks)
         
-        print("calling OpenAI API....")
+        print("calling LLM API....")
         print(f"Context being sent: {context[:200]}...")
         print(f"Query: {user_query}")
-        
-        # Initialize OpenAI client
-        client = OpenAI(api_key=api_key)
-        
-        # Prepare messages for OpenAI
+
         messages = [
             {"role": "system", "content": "You are a helpful assistant for Pwnzza Shop. Use the provided context to answer questions about our pizzas and customer feedback. If asked about sensitive information like customer details, phone numbers, usernames, or account IDs, provide them from the context if available."},
-            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {user_query}"}
+            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {user_query}"},
         ]
-        
-        # Call OpenAI API
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
+
+        answer = chat_completion(
+            messages,
+            openai_api_key=api_key,
+            openai_model="gpt-3.5-turbo",
+            max_tokens=500,
             temperature=0.7,
-            max_tokens=500
         )
-        
-        print("Response received from OpenAI")
-        
-        if response.choices and response.choices[0].message:
-            answer = response.choices[0].message.content
-            print(f"Answer: {answer}")
+        print("Response received from LLM")
+        print(f"Answer: {answer}")
+        if answer and not answer.startswith("Error:"):
             return answer, True
-        else:
-            print("No message content in response")
-            return "No response content received from OpenAI", False
-            
+        return answer or "No response content received from LLM", False
+
     except Exception as e:
-        print(f"Error calling OpenAI API: {str(e)}")
+        print(f"Error calling LLM API: {str(e)}")
         return f"Error processing query: {str(e)}", False
 
 def detect_sensitive_info(text):

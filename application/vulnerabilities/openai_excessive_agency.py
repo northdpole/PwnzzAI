@@ -1,7 +1,7 @@
 import sqlite3
 import json
 from datetime import datetime
-from openai import OpenAI
+from application.llm_provider import chat_completion_excessive_agency
 from application.model import User, Pizza
 from flask import session
 from sqlalchemy import func
@@ -10,16 +10,13 @@ DEFAULT_MODEL = "gpt-4o-mini"  # You can change this to any OpenAI model availab
 
 
 def openai_chat(prompt: str, api_key: str) -> str:
-    """Wrapper around OpenAI chat completion with explicit API key"""
-    client = OpenAI(api_key=api_key)
-    response = client.chat.completions.create(
-        model=DEFAULT_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.2  # keep output stable
+    """Wrapper around chat completion with explicit API key (Gemini / OpenAI / Ollama)."""
+    return chat_completion_excessive_agency(
+        prompt,
+        openai_api_key=api_key,
+        openai_model=DEFAULT_MODEL,
+        temperature=0.2,
     )
-    
-    
-    return response.choices[0].message.content.strip()
 
 
 def extract_order(order_text: str, api_key: str):
@@ -61,11 +58,11 @@ def place_order(order_text: str, api_key: str):
         username = order_info["username"]
         pizza_name = order_info["pizza"]
         quantity = int(order_info["quantity"])
-        
-        if username:        
+
+        if username:
             user = User.query.filter_by(username=func.lower(username)).first()
         else:
-            user = User.query.get_or_404(session.get('user_id'))    
+            user = User.query.get_or_404(session.get('user_id'))
             userame=user.username
         print("username",username)
         # lookup Pizza
