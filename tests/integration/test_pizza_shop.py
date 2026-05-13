@@ -189,6 +189,11 @@ class TestVulnerabilityPages:
         response = client.get('/data-poisoning')
         assert response.status_code == 200
 
+    def test_catering_rag_poisoning_page(self, client):
+        """Test corporate catering RAG lab page loads."""
+        response = client.get('/data-poisoning/catering-rag')
+        assert response.status_code == 200
+
     def test_dos_attack_page(self, client):
         """Test DoS attack demonstration page loads."""
         response = client.get('/dos-attack')
@@ -209,6 +214,11 @@ class TestVulnerabilityPages:
         response = client.get('/excessive-agency')
         assert response.status_code == 200
 
+    def test_agentic_tools_page(self, client):
+        """Test agentic tools / SQL lab page loads."""
+        response = client.get('/agentic-tools')
+        assert response.status_code == 200
+
     def test_misinformation_page(self, client):
         """Test misinformation page loads."""
         response = client.get('/misinformation')
@@ -218,6 +228,19 @@ class TestVulnerabilityPages:
         """Test direct prompt injection page loads."""
         response = client.get('/direct-prompt-injection')
         assert response.status_code == 200
+
+    def test_direct_prompt_injection_nav_hierarchy_and_deep_links(self, client):
+        """DPI appears under a nav group with Baseline and Guardrail ladder hash links."""
+        response = client.get('/direct-prompt-injection')
+        assert response.status_code == 200
+        html = response.data.decode()
+        assert 'id="dpi-lab"' in html
+        assert '/direct-prompt-injection#baseline' in html
+        assert '/direct-prompt-injection#guardrail-ladder' in html
+        assert 'data-dpi-mode="baseline"' in html
+        assert 'data-dpi-mode="escalation"' in html
+        assert '>Baseline<' in html
+        assert '>Guardrail ladder<' in html
 
     def test_indirect_prompt_injection_page(self, client):
         """Test indirect prompt injection page loads."""
